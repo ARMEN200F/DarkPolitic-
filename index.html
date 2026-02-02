@@ -4,84 +4,37 @@
 <meta charset="UTF-8">
 <title>RSON</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <style>
-body {
-  margin:0;
-  font-family: Arial;
-  color:#b30000;
-  background:
-    linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)),
-    url("https://drive.google.com/uc?export=view&id=11u-C06kDMqsT7TGMp40EI4CMPKzWTyuQ")
-    no-repeat center center fixed;
-  background-size: cover;
-}
-
-.box {
-  background: rgba(0,0,0,0.75);
-  padding:20px;
-  margin:20px auto;
-  max-width:600px;
-  border:1px solid #600;
-}
-
-button {
-  width:100%;
-  padding:14px;
-  margin:8px 0;
-  background:#600;
-  color:#fff;
-  border:none;
-  font-size:16px;
-  cursor:pointer;
-}
-
-button:hover { background:#800 }
-
-input, textarea {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  background:#111;
-  color:#fff;
-  border:1px solid #600;
-}
-
-.post {
-  border-left:4px solid #800;
-  padding:10px;
-  margin:15px 0;
-  background:#111;
-}
-
-.hidden { display:none }
+body { background:#000; color:#f00; font-family:Arial; text-align:center; margin:0; padding:20px; }
+button { background:#800000; color:#fff; border:none; padding:10px 15px; cursor:pointer; margin:8px 0; width:100%; font-size:16px; }
+textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:5px 0; font-size:16px; }
+.post { border-left:4px solid #f00; padding:10px; margin:15px 0; background:#151515; text-align:left; position:relative; }
+.comment { background:#222; padding:6px; margin:6px 0; position:relative; }
+.delete-btn { background:#f00; color:#fff; border:none; padding:3px 5px; cursor:pointer; margin-left:5px; }
 </style>
 </head>
-
 <body>
 
-<div class="box" id="login">
-  <h2>RSON</h2>
+<h1 id="title">Добро пожаловать</h1>
+
+<div id="login">
   <button onclick="loginAuthor()">Войти как автор</button>
   <button onclick="loginUser()">Войти как пользователь</button>
 </div>
 
-<div class="box hidden" id="authorPanel">
-  <h3>Новая статья</h3>
-  <input id="title" placeholder="Заголовок">
-  <textarea id="text" placeholder="Текст статьи"></textarea>
+<div id="authorPanel" style="display:none">
+  <h2>Новая статья</h2>
+  <input id="postTitle" placeholder="Заголовок">
+  <textarea id="postText" placeholder="Текст статьи"></textarea>
   <button onclick="publish()">Опубликовать</button>
 </div>
 
-<div class="box hidden" id="postsBox">
-  <h3>Статьи</h3>
-  <div id="posts"></div>
-</div>
+<h2>Статьи</h2>
+<div id="posts"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } 
-from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBAixfevL-T7BFz2iLb4jS1vcQ3nJBACuU",
@@ -99,45 +52,81 @@ let isAuthor = false;
 
 window.loginAuthor = () => {
   const code = prompt("Введите код автора:");
-  if(code === "120812"){
+  if (code === "120812") {
     isAuthor = true;
-    document.getElementById("login").classList.add("hidden");
-    document.getElementById("authorPanel").classList.remove("hidden");
-    document.getElementById("postsBox").classList.remove("hidden");
-  } else alert("Неверно");
+    document.getElementById("authorPanel").style.display = "block";
+    document.getElementById("login").style.display = "none";
+    document.getElementById("title").innerText = "Режим автора";
+  } else {
+    alert("Неверный код");
+  }
 };
 
 window.loginUser = () => {
-  document.getElementById("login").classList.add("hidden");
-  document.getElementById("postsBox").classList.remove("hidden");
+  document.getElementById("login").style.display = "none";
+  document.getElementById("title").innerText = "Режим пользователя";
 };
 
 window.publish = async () => {
-  if(!title.value || !text.value) return;
-  await addDoc(collection(db,"posts"), {
-    title:title.value,
-    text:text.value,
-    time:Date.now()
-  });
-  title.value=""; text.value="";
+  const title = postTitle.value.trim();
+  const text = postText.value.trim();
+  if (!title || !text) return alert("Заполни всё");
+  await addDoc(collection(db, "posts"), { title, text, comments: [], likes:0, time: Date.now() });
+  postTitle.value = "";
+  postText.value = "";
 };
 
-onSnapshot(collection(db,"posts"), snap=>{
-  posts.innerHTML="";
-  snap.forEach(d=>{
-    const p=d.data();
-    const div=document.createElement("div");
-    div.className="post";
-    div.innerHTML=`<h4>${p.title}</h4><p>${p.text}</p>`;
-    if(isAuthor){
-      const b=document.createElement("button");
-      b.textContent="Удалить";
-      b.onclick=()=>deleteDoc(doc(db,"posts",d.id));
-      div.appendChild(b);
-    }
-    posts.appendChild(div);
+const postsDiv = document.getElementById("posts");
+
+onSnapshot(collection(db, "posts"), snap => {
+  postsDiv.innerHTML = "";
+  snap.forEach(d => {
+    const p = d.data();
+    const div = document.createElement("div");
+    div.className = "post";
+    
+    let commentsHTML = (p.comments||[]).map((c,index)=>{
+      if(isAuthor){
+        return `<div class="comment">${c} <button class="delete-btn" onclick="deleteComment('${d.id}','${c}')">Удалить</button></div>`;
+      } else {
+        return `<div class="comment">${c}</div>`;
+      }
+    }).join("");
+
+    div.innerHTML = `<h3>${p.title}</h3><p>${p.text}</p>
+      <button onclick="like('${d.id}',${p.likes})">❤️ ${p.likes}</button>
+      ${commentsHTML}
+      <textarea id="c${d.id}" placeholder="Комментарий"></textarea>
+      <button onclick="comment('${d.id}')">Отправить</button>
+      ${isAuthor?'<button onclick="deletePost(\''+d.id+'\')">Удалить статью</button>':''}`;
+    
+    postsDiv.appendChild(div);
   });
 });
+
+window.like = async (id,l) => {
+  const ref = doc(db,"posts",id);
+  await updateDoc(ref,{likes:l+1});
+};
+
+window.comment = async (id) => {
+  const t = document.getElementById("c"+id).value.trim();
+  if(!t) return;
+  const ref = doc(db,"posts",id);
+  await updateDoc(ref,{comments:arrayUnion(t)});
+  document.getElementById("c"+id).value="";
+};
+
+window.deleteComment = async (postId,commentText) => {
+  const ref = doc(db,"posts",postId);
+  await updateDoc(ref,{comments:arrayRemove(commentText)});
+};
+
+window.deletePost = async (postId) => {
+  if(confirm("Удалить статью?")){
+    await deleteDoc(doc(db,"posts",postId));
+  }
+};
 </script>
 
 </body>
