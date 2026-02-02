@@ -91,7 +91,7 @@ textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444
         text,
         comments: [],
         likes: 0,
-        author: "admin", // можно потом заменить на уникальный ID
+        author: "admin", // автор
         time: Date.now()
       });
       document.getElementById("postTitle").value = "";
@@ -114,8 +114,10 @@ textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444
         const div = document.createElement("div");
         div.className = "post";
 
+        // Комментарии: автор может удалять чужие
         let commentsHTML = (p.comments || []).map(c => `
-          <div class="comment">${c.text} 
+          <div class="comment">
+            ${c.text} 
             ${isAuthor && c.user !== "admin" ? `<button class="delete-btn" onclick="deleteComment('${id}','${c.text}')">✖</button>` : ''}
           </div>
         `).join("");
