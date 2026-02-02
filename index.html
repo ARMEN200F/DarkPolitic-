@@ -5,17 +5,18 @@
 <title>РСОН</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { background:#000; color:#f00; font-family:Arial; text-align:center; }
-.box { background:#111; padding:20px; margin:20px auto; max-width:600px; text-align:left; position:relative; }
-button { background:#f00; color:#fff; border:none; padding:10px 15px; cursor:pointer; margin:5px 0; width:100%; }
-textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:5px 0; }
+body { background:#000; color:#f00; font-family:Arial; text-align:center; margin:0; padding:0; }
+.box { background:#111; padding:20px; margin:20px auto; max-width:600px; text-align:center; position:relative; }
+button { background:#f00; color:#fff; border:none; padding:10px 15px; cursor:pointer; margin:5px; }
+textarea { width:90%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:10px 0; display:block; }
 .article { border-left:4px solid #f00; padding:10px; margin:15px 0; background:#151515; text-align:left; position:relative; }
-.comment { background:#222; padding:6px; margin:6px 0; position:relative; }
+.comment { background:#222; padding:6px; margin:6px 0; }
 img.article-img { max-width:100%; margin:10px 0; display:block; }
 #previewContainer img { max-width:100%; border-radius:5px; display:block; margin:5px 0; }
 .comment-options { float:right; cursor:pointer; margin-left:10px; color:#fff; }
 .delete-btn { background:#f00; color:#fff; border:none; padding:3px 5px; cursor:pointer; margin-left:5px; }
-.tabs button { width:32%; display:inline-block; }
+.tabs button { width:30%; display:inline-block; }
+#articleSection { display:none; }
 </style>
 </head>
 <body>
@@ -32,28 +33,24 @@ img.article-img { max-width:100%; margin:10px 0; display:block; }
 </div>
 
 <div id="authorPanel" class="box" style="display:none">
-<div class="tabs">
-  <button id="tabIdeasAuthor">Мои идеи</button>
-  <button id="tabPoliticsAuthor">Политические новости</button>
-  <button id="tabHistoryAuthor">Исторические истории</button>
+<div id="authorTabs">
+<button data-category="ideas">Мои идеи</button>
+<button data-category="politics">Политические новости</button>
+<button data-category="history">Исторические истории</button>
 </div>
-<textarea id="articleText" placeholder="Текст статьи"></textarea>
-<div>
-<button id="topPhotoBtn">Добавить фотографию сверху</button>
-<button id="bottomPhotoBtn">Добавить фотографию снизу</button>
-<input type="file" id="fileInput" style="display:none" accept="image/*">
-</div>
-<div id="previewContainer" style="text-align:center; margin:10px 0; display:none;">
-  <img id="previewImg" src="">
-</div>
+
+<div id="articleSection">
+<h3 id="categoryTitle"></h3>
+<textarea id="articleText" placeholder="Написать статью"></textarea>
 <button id="publishBtn">Опубликовать</button>
+</div>
 </div>
 
 <div id="userPanel" class="box" style="display:none">
-<div class="tabs">
-  <button id="tabIdeasUser">Идеи автора</button>
-  <button id="tabPoliticsUser">Политические новости</button>
-  <button id="tabHistoryUser">Исторические истории</button>
+<div id="userTabs">
+<button data-category="ideas">Идеи автора</button>
+<button data-category="politics">Политические новости</button>
+<button data-category="history">Исторические истории</button>
 </div>
 </div>
 
@@ -80,7 +77,7 @@ const storage = firebase.storage();
 let IS_AUTHOR = false;
 let selectedFile = null;
 let imgPosition = "top";
-let currentCategory = 'ideas'; 
+let currentCategory = '';
 
 const loginBox = document.getElementById('loginBox');
 const authorLogin = document.getElementById('authorLogin');
@@ -89,110 +86,81 @@ const userPanel = document.getElementById('userPanel');
 const articles = document.getElementById('articles');
 const promo = document.getElementById('promo');
 const articleText = document.getElementById('articleText');
-const fileInput = document.getElementById('fileInput');
-const previewContainer = document.getElementById('previewContainer');
-const previewImg = document.getElementById('previewImg');
+const articleSection = document.getElementById('articleSection');
 const list = document.getElementById('list');
+const categoryTitle = document.getElementById('categoryTitle');
 
 document.getElementById('userBtn').addEventListener('click', ()=>{
-  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles();
+  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; articles.style.display='block'; articleSection.style.display='none';
 });
+
 document.getElementById('authorBtn').addEventListener('click', ()=>{
   loginBox.style.display='none'; authorLogin.style.display='block';
 });
+
 document.getElementById('checkPromoBtn').addEventListener('click', ()=>{
-  if(promo.value==='120812'){ // <- новый промокод
-    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles();
+  if(promo.value==='120812'){ // новый промокод
+    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block'; articles.style.display='block';
   } else alert('Неверно');
 });
 
 // Авторские вкладки
-document.getElementById('tabIdeasAuthor').onclick = ()=>{ currentCategory='ideas'; loadArticles(); };
-document.getElementById('tabPoliticsAuthor').onclick = ()=>{ currentCategory='politics'; loadArticles(); };
-document.getElementById('tabHistoryAuthor').onclick = ()=>{ currentCategory='history'; loadArticles(); };
-
-// Пользовательские вкладки
-document.getElementById('tabIdeasUser').onclick = ()=>{ currentCategory='ideas'; loadArticles(); };
-document.getElementById('tabPoliticsUser').onclick = ()=>{ currentCategory='politics'; loadArticles(); };
-document.getElementById('tabHistoryUser').onclick = ()=>{ currentCategory='history'; loadArticles(); };
-
-// Фото
-document.getElementById('topPhotoBtn').onclick = ()=>{ imgPosition='top'; fileInput.click(); };
-document.getElementById('bottomPhotoBtn').onclick = ()=>{ imgPosition='bottom'; fileInput.click(); };
-fileInput.addEventListener('change', e=>{
-  if(e.target.files[0]){
-    selectedFile = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = event=>{
-      previewImg.src = event.target.result; previewContainer.style.display='block';
-    };
-    reader.readAsDataURL(selectedFile);
-  }
+document.querySelectorAll('#authorTabs button').forEach(btn=>{
+  btn.onclick=()=>{
+    currentCategory=btn.getAttribute('data-category');
+    categoryTitle.innerText = btn.innerText;
+    articleSection.style.display='block';
+    loadArticles();
+  };
 });
 
-// Публикация
-document.getElementById('publishBtn').onclick = addArticle;
+// Пользовательские вкладки
+document.querySelectorAll('#userTabs button').forEach(btn=>{
+  btn.onclick=()=>{
+    currentCategory=btn.getAttribute('data-category');
+    categoryTitle.innerText = btn.innerText;
+    articleSection.style.display='none';
+    loadArticles();
+  };
+});
 
-function addArticle(){
+// Публикация статьи
+document.getElementById('publishBtn').onclick=()=>{
   const text = articleText.value.trim();
-  if(!text && !selectedFile) return;
-  let cat = currentCategory;
-  if(selectedFile){
-    const storageRef = storage.ref('articles/'+Date.now()+'_'+selectedFile.name);
-    storageRef.put(selectedFile).then(snap=>{
-      snap.ref.getDownloadURL().then(url=>{
-        saveArticle(text,url,cat); previewContainer.style.display='none';
-      });
-    });
-  } else saveArticle(text,null,cat);
-  articleText.value=''; selectedFile=null;
-}
+  if(!text) return;
+  db.collection('articles').add({text, likes:0, comments:[], category:currentCategory});
+  articleText.value='';
+  loadArticles();
+};
 
-function saveArticle(text,imgUrl,category){
-  let articleData = {text:text, likes:0, comments:[], category:category};
-  if(imgUrl) imgPosition==='top'? articleData.imgTop=imgUrl : articleData.imgBottom=imgUrl;
-  db.collection('articles').add(articleData);
-}
-
+// Загрузка статей
 function loadArticles(){
+  if(!currentCategory) return;
   db.collection('articles').where('category','==',currentCategory).onSnapshot(snap=>{
     list.innerHTML='';
     snap.forEach(doc=>{
       const a = doc.data();
       const div = document.createElement('div');
       div.className='article';
-      let contentHTML='';
-      if(IS_AUTHOR) contentHTML=`<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${doc.id}')">Удалить статью</button></div>`;
-      if(a.imgTop) contentHTML+=`<img class="article-img" src="${a.imgTop}">`;
-      if(a.text) contentHTML+=`<p>${a.text}</p>`;
-      if(a.imgBottom) contentHTML+=`<img class="article-img" src="${a.imgBottom}">`;
-
-      let commentsHTML = (a.comments||[]).map((c,index)=>{
-        if(IS_AUTHOR){
-          return `<div class="comment" id="comment-${doc.id}-${index}">${c}<span class="comment-options" onclick="toggleDeleteButton('${doc.id}',${index})">⋮</span><button id="delete-btn-${doc.id}-${index}" class="delete-btn" style="display:none;" onclick="deleteComment('${doc.id}','${c}')">Удалить</button></div>`;
-        } else return `<div class="comment">${c}</div>`;
-      }).join('');
-
-      div.innerHTML = `${contentHTML}<button onclick="like('${doc.id}',${a.likes})">❤️ ${a.likes}</button>${commentsHTML}<textarea id="c${doc.id}" placeholder="Комментарий"></textarea><button onclick="comment('${doc.id}')">Отправить</button>`;
+      if(IS_AUTHOR) div.innerHTML = `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${doc.id}')">Удалить статью</button></div>`;
+      div.innerHTML += `<p>${a.text}</p>`;
+      if(a.comments) div.innerHTML += a.comments.map((c,i)=>IS_AUTHOR? `<div class="comment">${c}<button onclick="deleteComment('${doc.id}','${c}')">Удалить</button></div>`:`<div class="comment">${c}</div>`).join('');
+      if(IS_AUTHOR) div.innerHTML += `<textarea id="c${doc.id}" placeholder="Комментарий"></textarea><button onclick="comment('${doc.id}')">Отправить</button>`;
       list.appendChild(div);
     });
   });
 }
 
-// Лайки и комментарии
-function like(id,l){ db.collection('articles').doc(id).update({likes:l+1}); }
+// Комментарии и удаление
 function comment(id){ 
   const t=document.getElementById('c'+id).value; 
   if(!t) return; 
   db.collection('articles').doc(id).update({comments: firebase.firestore.FieldValue.arrayUnion(t)});
   document.getElementById('c'+id).value='';
 }
-function toggleDeleteButton(articleId,index){
-  const btn=document.getElementById(`delete-btn-${articleId}-${index}`);
-  btn.style.display=btn.style.display==='none'?'inline-block':'none';
-}
 function deleteComment(articleId,commentText){ if(!IS_AUTHOR) return; db.collection('articles').doc(articleId).update({comments: firebase.firestore.FieldValue.arrayRemove(commentText)}); }
 function deleteArticle(articleId){ if(!IS_AUTHOR) return; if(confirm('Удалить статью?')) db.collection('articles').doc(articleId).delete(); }
+
 </script>
 </body>
 </html>
