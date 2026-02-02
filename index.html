@@ -11,9 +11,6 @@ button { background:#f00; color:#fff; border:none; padding:10px 15px; cursor:poi
 textarea { width:90%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:10px 0; display:block; }
 .article { border-left:4px solid #f00; padding:10px; margin:15px 0; background:#151515; text-align:left; position:relative; }
 .comment { background:#222; padding:6px; margin:6px 0; }
-img.article-img { max-width:100%; margin:10px 0; display:block; }
-#previewContainer img { max-width:100%; border-radius:5px; display:block; margin:5px 0; }
-.comment-options { float:right; cursor:pointer; margin-left:10px; color:#fff; }
 .delete-btn { background:#f00; color:#fff; border:none; padding:3px 5px; cursor:pointer; margin-left:5px; }
 .tabs button { width:30%; display:inline-block; }
 #articleSection { display:none; }
@@ -52,55 +49,43 @@ img.article-img { max-width:100%; margin:10px 0; display:block; }
 <button data-category="politics">Политические новости</button>
 <button data-category="history">Исторические истории</button>
 </div>
+<h3 id="categoryTitleUser"></h3>
+<div id="listUser"></div>
 </div>
 
-<div id="articles" class="box" style="display:none">
-<h3>Статьи</h3>
-<div id="list"></div>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-firebase.initializeApp({
-  apiKey: "AIzaSyCcg7VJbtbhluJMIfCSzdPZUKoQmYT43ro",
-  authDomain: "darknews-904eb.firebaseapp.com",
-  projectId: "darknews-904eb",
-  storageBucket: "darknews-904eb.appspot.com"
-});
-
-const db = firebase.firestore();
-const storage = firebase.storage();
+// Подключение Supabase
+const supabaseUrl = 'https://qjditkvtmgjtzquhmbxa.supabase.co';
+const supabaseKey = 'sb_publishable_56UCHWD0G_x4DhspybwbCQ_YoBJR3MV';
+const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
 
 let IS_AUTHOR = false;
-let selectedFile = null;
-let imgPosition = "top";
 let currentCategory = '';
 
 const loginBox = document.getElementById('loginBox');
 const authorLogin = document.getElementById('authorLogin');
 const authorPanel = document.getElementById('authorPanel');
 const userPanel = document.getElementById('userPanel');
-const articles = document.getElementById('articles');
-const promo = document.getElementById('promo');
-const articleText = document.getElementById('articleText');
 const articleSection = document.getElementById('articleSection');
-const list = document.getElementById('list');
+const articleText = document.getElementById('articleText');
 const categoryTitle = document.getElementById('categoryTitle');
+const categoryTitleUser = document.getElementById('categoryTitleUser');
+const listUser = document.getElementById('listUser');
 
+// Вход
 document.getElementById('userBtn').addEventListener('click', ()=>{
-  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; articles.style.display='block'; articleSection.style.display='none';
+  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block';
 });
 
 document.getElementById('authorBtn').addEventListener('click', ()=>{
   loginBox.style.display='none'; authorLogin.style.display='block';
 });
 
-document.getElementById('checkPromoBtn').addEventListener('click', ()=>{
-  if(promo.value==='120812'){ // новый промокод
-    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block'; articles.style.display='block';
+// Проверка промокода
+document.getElementById('checkPromoBtn').addEventListener('click', async ()=>{
+  if(promo.value==='120812'){ 
+    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block';
   } else alert('Неверно');
 });
 
@@ -116,51 +101,59 @@ document.querySelectorAll('#authorTabs button').forEach(btn=>{
 
 // Пользовательские вкладки
 document.querySelectorAll('#userTabs button').forEach(btn=>{
-  btn.onclick=()=>{
+  btn.onclick=async()=>{
     currentCategory=btn.getAttribute('data-category');
-    categoryTitle.innerText = btn.innerText;
+    categoryTitleUser.innerText = btn.innerText;
     articleSection.style.display='none';
-    loadArticles();
+    loadArticlesUser();
   };
 });
 
 // Публикация статьи
-document.getElementById('publishBtn').onclick=()=>{
+document.getElementById('publishBtn').onclick=async()=>{
   const text = articleText.value.trim();
   if(!text) return;
-  db.collection('articles').add({text, likes:0, comments:[], category:currentCategory});
+  await supabase.from('articles').insert([{text, category:currentCategory, likes:0, comments:[]}]);
   articleText.value='';
   loadArticles();
 };
 
-// Загрузка статей
-function loadArticles(){
+// Загрузка статей автора
+async function loadArticles(){
   if(!currentCategory) return;
-  db.collection('articles').where('category','==',currentCategory).onSnapshot(snap=>{
-    list.innerHTML='';
-    snap.forEach(doc=>{
-      const a = doc.data();
-      const div = document.createElement('div');
-      div.className='article';
-      if(IS_AUTHOR) div.innerHTML = `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${doc.id}')">Удалить статью</button></div>`;
-      div.innerHTML += `<p>${a.text}</p>`;
-      if(a.comments) div.innerHTML += a.comments.map((c,i)=>IS_AUTHOR? `<div class="comment">${c}<button onclick="deleteComment('${doc.id}','${c}')">Удалить</button></div>`:`<div class="comment">${c}</div>`).join('');
-      if(IS_AUTHOR) div.innerHTML += `<textarea id="c${doc.id}" placeholder="Комментарий"></textarea><button onclick="comment('${doc.id}')">Отправить</button>`;
-      list.appendChild(div);
-    });
+  let { data: articles } = await supabase.from('articles').select('*').eq('category', currentCategory);
+  const list = document.getElementById('list');
+  list.innerHTML='';
+  articles.forEach(a=>{
+    const div = document.createElement('div');
+    div.className='article';
+    if(IS_AUTHOR) div.innerHTML = `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${a.id}')">Удалить статью</button></div>`;
+    div.innerHTML += `<p>${a.text}</p>`;
+    list.appendChild(div);
   });
 }
 
-// Комментарии и удаление
-function comment(id){ 
-  const t=document.getElementById('c'+id).value; 
-  if(!t) return; 
-  db.collection('articles').doc(id).update({comments: firebase.firestore.FieldValue.arrayUnion(t)});
-  document.getElementById('c'+id).value='';
+// Загрузка статей пользователя
+async function loadArticlesUser(){
+  if(!currentCategory) return;
+  let { data: articles } = await supabase.from('articles').select('*').eq('category', currentCategory);
+  listUser.innerHTML='';
+  articles.forEach(a=>{
+    const div = document.createElement('div');
+    div.className='article';
+    div.innerHTML = `<p>${a.text}</p>`;
+    listUser.appendChild(div);
+  });
 }
-function deleteComment(articleId,commentText){ if(!IS_AUTHOR) return; db.collection('articles').doc(articleId).update({comments: firebase.firestore.FieldValue.arrayRemove(commentText)}); }
-function deleteArticle(articleId){ if(!IS_AUTHOR) return; if(confirm('Удалить статью?')) db.collection('articles').doc(articleId).delete(); }
 
+// Удаление статьи
+async function deleteArticle(id){
+  if(!IS_AUTHOR) return;
+  if(confirm('Удалить статью?')){
+    await supabase.from('articles').delete().eq('id', id);
+    loadArticles();
+  }
+}
 </script>
 </body>
 </html>
