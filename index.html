@@ -80,9 +80,8 @@ const storage = firebase.storage();
 let IS_AUTHOR = false;
 let selectedFile = null;
 let imgPosition = "top";
-let currentCategory = 'ideas'; // default category
+let currentCategory = 'ideas'; 
 
-// Элементы
 const loginBox = document.getElementById('loginBox');
 const authorLogin = document.getElementById('authorLogin');
 const authorPanel = document.getElementById('authorPanel');
@@ -95,21 +94,24 @@ const previewContainer = document.getElementById('previewContainer');
 const previewImg = document.getElementById('previewImg');
 const list = document.getElementById('list');
 
-// Входы
-document.getElementById('userBtn').onclick = ()=>{
-  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles(); };
-document.getElementById('authorBtn').onclick = ()=>{ loginBox.style.display='none'; authorLogin.style.display='block'; };
-document.getElementById('checkPromoBtn').onclick = ()=>{
-  if(promo.value==='087212'){ IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles(); }
-  else alert('Неверно'); 
-};
+document.getElementById('userBtn').addEventListener('click', ()=>{
+  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles();
+});
+document.getElementById('authorBtn').addEventListener('click', ()=>{
+  loginBox.style.display='none'; authorLogin.style.display='block';
+});
+document.getElementById('checkPromoBtn').addEventListener('click', ()=>{
+  if(promo.value==='120812'){ // <- новый промокод
+    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block'; articles.style.display='block'; currentCategory='ideas'; loadArticles();
+  } else alert('Неверно');
+});
 
-// Вкладки автора
+// Авторские вкладки
 document.getElementById('tabIdeasAuthor').onclick = ()=>{ currentCategory='ideas'; loadArticles(); };
 document.getElementById('tabPoliticsAuthor').onclick = ()=>{ currentCategory='politics'; loadArticles(); };
 document.getElementById('tabHistoryAuthor').onclick = ()=>{ currentCategory='history'; loadArticles(); };
 
-// Вкладки пользователя
+// Пользовательские вкладки
 document.getElementById('tabIdeasUser').onclick = ()=>{ currentCategory='ideas'; loadArticles(); };
 document.getElementById('tabPoliticsUser').onclick = ()=>{ currentCategory='politics'; loadArticles(); };
 document.getElementById('tabHistoryUser').onclick = ()=>{ currentCategory='history'; loadArticles(); };
@@ -134,19 +136,15 @@ document.getElementById('publishBtn').onclick = addArticle;
 function addArticle(){
   const text = articleText.value.trim();
   if(!text && !selectedFile) return;
-
-  let cat = currentCategory; // category сохраняем
-
+  let cat = currentCategory;
   if(selectedFile){
     const storageRef = storage.ref('articles/'+Date.now()+'_'+selectedFile.name);
     storageRef.put(selectedFile).then(snap=>{
       snap.ref.getDownloadURL().then(url=>{
-        saveArticle(text,url,cat);
-        previewContainer.style.display='none';
+        saveArticle(text,url,cat); previewContainer.style.display='none';
       });
     });
   } else saveArticle(text,null,cat);
-
   articleText.value=''; selectedFile=null;
 }
 
@@ -156,7 +154,6 @@ function saveArticle(text,imgUrl,category){
   db.collection('articles').add(articleData);
 }
 
-// Загрузка статей
 function loadArticles(){
   db.collection('articles').where('category','==',currentCategory).onSnapshot(snap=>{
     list.innerHTML='';
