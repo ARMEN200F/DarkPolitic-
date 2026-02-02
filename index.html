@@ -12,8 +12,6 @@ textarea { width:90%; background:#222; color:#fff; border:1px solid #444; paddin
 .article { border-left:4px solid #f00; padding:10px; margin:15px 0; background:#151515; text-align:left; position:relative; }
 .comment { background:#222; padding:6px; margin:6px 0; }
 .delete-btn { background:#f00; color:#fff; border:none; padding:3px 5px; cursor:pointer; margin-left:5px; }
-.tabs button { width:30%; display:inline-block; }
-#articleSection { display:none; }
 </style>
 </head>
 <body>
@@ -30,26 +28,15 @@ textarea { width:90%; background:#222; color:#fff; border:1px solid #444; paddin
 </div>
 
 <div id="authorPanel" class="box" style="display:none">
-<div id="authorTabs">
-<button data-category="ideas">Мои идеи</button>
-<button data-category="politics">Политические новости</button>
-<button data-category="history">Исторические истории</button>
-</div>
-
-<div id="articleSection">
-<h3 id="categoryTitle"></h3>
-<textarea id="articleText" placeholder="Написать статью"></textarea>
+<h3>Написать статью</h3>
+<textarea id="articleText" placeholder="Напишите текст статьи"></textarea>
 <button id="publishBtn">Опубликовать</button>
-</div>
+<h3>Статьи</h3>
+<div id="list"></div>
 </div>
 
 <div id="userPanel" class="box" style="display:none">
-<div id="userTabs">
-<button data-category="ideas">Идеи автора</button>
-<button data-category="politics">Политические новости</button>
-<button data-category="history">Исторические истории</button>
-</div>
-<h3 id="categoryTitleUser"></h3>
+<h3>Статьи</h3>
 <div id="listUser"></div>
 </div>
 
@@ -61,21 +48,18 @@ const supabaseKey = 'sb_publishable_56UCHWD0G_x4DhspybwbCQ_YoBJR3MV';
 const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
 
 let IS_AUTHOR = false;
-let currentCategory = '';
 
 const loginBox = document.getElementById('loginBox');
 const authorLogin = document.getElementById('authorLogin');
 const authorPanel = document.getElementById('authorPanel');
 const userPanel = document.getElementById('userPanel');
-const articleSection = document.getElementById('articleSection');
 const articleText = document.getElementById('articleText');
-const categoryTitle = document.getElementById('categoryTitle');
-const categoryTitleUser = document.getElementById('categoryTitleUser');
+const list = document.getElementById('list');
 const listUser = document.getElementById('listUser');
 
 // Вход
 document.getElementById('userBtn').addEventListener('click', ()=>{
-  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block';
+  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; loadArticlesUser();
 });
 
 document.getElementById('authorBtn').addEventListener('click', ()=>{
@@ -86,64 +70,71 @@ document.getElementById('authorBtn').addEventListener('click', ()=>{
 document.getElementById('checkPromoBtn').addEventListener('click', async ()=>{
   if(promo.value==='120812'){ 
     IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block';
-  } else alert('Неверно');
-});
-
-// Авторские вкладки
-document.querySelectorAll('#authorTabs button').forEach(btn=>{
-  btn.onclick=()=>{
-    currentCategory=btn.getAttribute('data-category');
-    categoryTitle.innerText = btn.innerText;
-    articleSection.style.display='block';
     loadArticles();
-  };
-});
-
-// Пользовательские вкладки
-document.querySelectorAll('#userTabs button').forEach(btn=>{
-  btn.onclick=async()=>{
-    currentCategory=btn.getAttribute('data-category');
-    categoryTitleUser.innerText = btn.innerText;
-    articleSection.style.display='none';
-    loadArticlesUser();
-  };
+  } else alert('Неверно');
 });
 
 // Публикация статьи
 document.getElementById('publishBtn').onclick=async()=>{
   const text = articleText.value.trim();
   if(!text) return;
-  await supabase.from('articles').insert([{text, category:currentCategory, likes:0, comments:[]}]);
+  await supabase.from('articles').insert([{text, likes:0, comments:[]}]);
   articleText.value='';
   loadArticles();
 };
 
 // Загрузка статей автора
 async function loadArticles(){
-  if(!currentCategory) return;
-  let { data: articles } = await supabase.from('articles').select('*').eq('category', currentCategory);
-  const list = document.getElementById('list');
+  let { data: articles } = await supabase.from('articles').select('*').order('id', {ascending:false});
   list.innerHTML='';
   articles.forEach(a=>{
     const div = document.createElement('div');
     div.className='article';
-    if(IS_AUTHOR) div.innerHTML = `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${a.id}')">Удалить статью</button></div>`;
-    div.innerHTML += `<p>${a.text}</p>`;
+    let html = '';
+    if(IS_AUTHOR){
+      html += `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${a.id}')">Удалить статью</button></div>`;
+    }
+    html += `<p>${a.text}</p>
+      <button onclick="like('${a.id}',${a.likes})">❤️ ${a.likes}</button>
+      <div id="comments-${a.id}">${(a.comments||[]).map((c,i)=>IS_AUTHOR?`<div class="comment">${c} <button class="delete-btn" onclick="deleteComment('${a.id}','${c}')">Удалить</button></div>`:`<div class="comment">${c}</div>`).join('')}</div>
+      <textarea id="c${a.id}" placeholder="Комментарий"></textarea>
+      <button onclick="comment('${a.id}')">Отправить</button>
+    `;
+    div.innerHTML = html;
     list.appendChild(div);
   });
 }
 
 // Загрузка статей пользователя
 async function loadArticlesUser(){
-  if(!currentCategory) return;
-  let { data: articles } = await supabase.from('articles').select('*').eq('category', currentCategory);
+  let { data: articles } = await supabase.from('articles').select('*').order('id', {ascending:false});
   listUser.innerHTML='';
   articles.forEach(a=>{
     const div = document.createElement('div');
     div.className='article';
-    div.innerHTML = `<p>${a.text}</p>`;
+    div.innerHTML = `<p>${a.text}</p>
+      <button onclick="like('${a.id}',${a.likes})">❤️ ${a.likes}</button>
+      <div id="comments-${a.id}">${(a.comments||[]).map(c=>`<div class="comment">${c}</div>`).join('')}</div>
+      <textarea id="c${a.id}" placeholder="Комментарий"></textarea>
+      <button onclick="comment('${a.id}')">Отправить</button>
+    `;
     listUser.appendChild(div);
   });
+}
+
+// Лайки
+async function like(id,l){
+  await supabase.from('articles').update({likes:l+1}).eq('id',id);
+  if(IS_AUTHOR) loadArticles(); else loadArticlesUser();
+}
+
+// Комментарии
+async function comment(id){
+  const t = document.getElementById("c"+id).value;
+  if(!t) return;
+  await supabase.from('articles').update({comments:Supabase.arrayAppend('comments', t)}).eq('id',id);
+  document.getElementById("c"+id).value='';
+  if(IS_AUTHOR) loadArticles(); else loadArticlesUser();
 }
 
 // Удаление статьи
@@ -153,6 +144,13 @@ async function deleteArticle(id){
     await supabase.from('articles').delete().eq('id', id);
     loadArticles();
   }
+}
+
+// Удаление комментария
+async function deleteComment(articleId, commentText){
+  if(!IS_AUTHOR) return;
+  await supabase.from('articles').update({comments:Supabase.arrayRemove('comments', commentText)}).eq('id', articleId);
+  loadArticles();
 }
 </script>
 </body>
