@@ -2,156 +2,123 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>РСОН</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Статьи</title>
 <style>
-body { background:#000; color:#f00; font-family:Arial; text-align:center; margin:0; padding:0; }
-.box { background:#111; padding:20px; margin:20px auto; max-width:600px; text-align:center; position:relative; }
-button { background:#f00; color:#fff; border:none; padding:10px 15px; cursor:pointer; margin:5px; }
-textarea { width:90%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:10px 0; display:block; }
-.article { border-left:4px solid #f00; padding:10px; margin:15px 0; background:#151515; text-align:left; position:relative; }
-.comment { background:#222; padding:6px; margin:6px 0; }
-.delete-btn { background:#f00; color:#fff; border:none; padding:3px 5px; cursor:pointer; margin-left:5px; }
+body { font-family: Arial; background:#111; color:#eee; padding:20px }
+button { padding:10px; margin:5px; cursor:pointer }
+input, textarea { width:100%; margin:5px 0; padding:8px }
+.post { border:1px solid #444; padding:10px; margin:10px 0 }
+.hidden { display:none }
 </style>
 </head>
 <body>
 
-<div id="loginBox" class="box">
-<h2>Добро пожаловать в РСОН</h2>
-<button id="userBtn">Войти как обычный пользователь</button>
-<button id="authorBtn">Войти как автор</button>
+<h1 id="title">Добро пожаловать</h1>
+
+<div id="login">
+  <button id="btnAuthor">Войти как автор</button>
+  <button id="btnUser">Войти как обычный пользователь</button>
 </div>
 
-<div id="authorLogin" class="box" style="display:none">
-<input id="promo" placeholder="Промокод">
-<button id="checkPromoBtn">Войти</button>
+<div id="authorPanel" class="hidden">
+  <h2>Новая статья</h2>
+  <input id="postTitle" placeholder="Заголовок">
+  <textarea id="postText" placeholder="Текст статьи"></textarea>
+  <button id="publishBtn">Опубликовать</button>
 </div>
 
-<div id="authorPanel" class="box" style="display:none">
-<h3>Написать статью</h3>
-<textarea id="articleText" placeholder="Напишите текст статьи"></textarea>
-<button id="publishBtn">Опубликовать</button>
-<h3>Статьи</h3>
-<div id="list"></div>
-</div>
+<h2>Статьи</h2>
+<div id="posts"></div>
 
-<div id="userPanel" class="box" style="display:none">
-<h3>Статьи</h3>
-<div id="listUser"></div>
-</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-// Подключение Supabase
-const supabaseUrl = 'https://qjditkvtmgjtzquhmbxa.supabase.co';
-const supabaseKey = 'sb_publishable_56UCHWD0G_x4DhspybwbCQ_YoBJR3MV';
-const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
-
-let IS_AUTHOR = false;
-
-const loginBox = document.getElementById('loginBox');
-const authorLogin = document.getElementById('authorLogin');
-const authorPanel = document.getElementById('authorPanel');
-const userPanel = document.getElementById('userPanel');
-const articleText = document.getElementById('articleText');
-const list = document.getElementById('list');
-const listUser = document.getElementById('listUser');
-
-// Вход
-document.getElementById('userBtn').addEventListener('click', ()=>{
-  IS_AUTHOR=false; loginBox.style.display='none'; userPanel.style.display='block'; loadArticlesUser();
-});
-
-document.getElementById('authorBtn').addEventListener('click', ()=>{
-  loginBox.style.display='none'; authorLogin.style.display='block';
-});
-
-// Проверка промокода
-document.getElementById('checkPromoBtn').addEventListener('click', async ()=>{
-  if(promo.value==='120812'){ 
-    IS_AUTHOR=true; authorLogin.style.display='none'; authorPanel.style.display='block';
-    loadArticles();
-  } else alert('Неверно');
-});
-
-// Публикация статьи
-document.getElementById('publishBtn').onclick=async()=>{
-  const text = articleText.value.trim();
-  if(!text) return;
-  await supabase.from('articles').insert([{text, likes:0, comments:[]}]);
-  articleText.value='';
-  loadArticles();
+const firebaseConfig = {
+  apiKey: "AIzaSyBAixfevL-T7BFz2iLb4jS1vcQ3nJBACuU",
+  authDomain: "rson-2005b.firebaseapp.com",
+  projectId: "rson-2005b",
+  storageBucket: "rson-2005b.firebasestorage.app",
+  messagingSenderId: "1026695255902",
+  appId: "1:1026695255902:web:5858543731ca7b44ace1cf"
 };
 
-// Загрузка статей автора
-async function loadArticles(){
-  let { data: articles } = await supabase.from('articles').select('*').order('id', {ascending:false});
-  list.innerHTML='';
-  articles.forEach(a=>{
-    const div = document.createElement('div');
-    div.className='article';
-    let html = '';
-    if(IS_AUTHOR){
-      html += `<div style="text-align:right;"><button class="delete-btn" onclick="deleteArticle('${a.id}')">Удалить статью</button></div>`;
-    }
-    html += `<p>${a.text}</p>
-      <button onclick="like('${a.id}',${a.likes})">❤️ ${a.likes}</button>
-      <div id="comments-${a.id}">${(a.comments||[]).map((c,i)=>IS_AUTHOR?`<div class="comment">${c} <button class="delete-btn" onclick="deleteComment('${a.id}','${c}')">Удалить</button></div>`:`<div class="comment">${c}</div>`).join('')}</div>
-      <textarea id="c${a.id}" placeholder="Комментарий"></textarea>
-      <button onclick="comment('${a.id}')">Отправить</button>
-    `;
-    div.innerHTML = html;
-    list.appendChild(div);
-  });
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-// Загрузка статей пользователя
-async function loadArticlesUser(){
-  let { data: articles } = await supabase.from('articles').select('*').order('id', {ascending:false});
-  listUser.innerHTML='';
-  articles.forEach(a=>{
-    const div = document.createElement('div');
-    div.className='article';
-    div.innerHTML = `<p>${a.text}</p>
-      <button onclick="like('${a.id}',${a.likes})">❤️ ${a.likes}</button>
-      <div id="comments-${a.id}">${(a.comments||[]).map(c=>`<div class="comment">${c}</div>`).join('')}</div>
-      <textarea id="c${a.id}" placeholder="Комментарий"></textarea>
-      <button onclick="comment('${a.id}')">Отправить</button>
-    `;
-    listUser.appendChild(div);
-  });
-}
+let isAuthor = false;
 
-// Лайки
-async function like(id,l){
-  await supabase.from('articles').update({likes:l+1}).eq('id',id);
-  if(IS_AUTHOR) loadArticles(); else loadArticlesUser();
-}
+const postsDiv = document.getElementById("posts");
+const authorPanel = document.getElementById("authorPanel");
 
-// Комментарии
-async function comment(id){
-  const t = document.getElementById("c"+id).value;
-  if(!t) return;
-  await supabase.from('articles').update({comments:Supabase.arrayAppend('comments', t)}).eq('id',id);
-  document.getElementById("c"+id).value='';
-  if(IS_AUTHOR) loadArticles(); else loadArticlesUser();
-}
-
-// Удаление статьи
-async function deleteArticle(id){
-  if(!IS_AUTHOR) return;
-  if(confirm('Удалить статью?')){
-    await supabase.from('articles').delete().eq('id', id);
-    loadArticles();
+document.getElementById("btnAuthor").onclick = () => {
+  const code = prompt("Введите код автора:");
+  if (code === "120812") {
+    isAuthor = true;
+    authorPanel.classList.remove("hidden");
+    document.getElementById("login").classList.add("hidden");
+    document.getElementById("title").innerText = "Режим автора";
+    renderPosts();
+  } else {
+    alert("Неверный код");
   }
+};
+
+document.getElementById("btnUser").onclick = () => {
+  isAuthor = false;
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("title").innerText = "Режим пользователя";
+  renderPosts();
+};
+
+document.getElementById("publishBtn").onclick = async () => {
+  const title = postTitle.value.trim();
+  const text = postText.value.trim();
+  if (!title || !text) return alert("Заполни всё");
+
+  await addDoc(collection(db, "posts"), {
+    title,
+    text,
+    time: Date.now()
+  });
+
+  postTitle.value = "";
+  postText.value = "";
+};
+
+function renderPosts() {
+  const q = query(collection(db, "posts"), orderBy("time", "desc"));
+  onSnapshot(q, snap => {
+    postsDiv.innerHTML = "";
+    snap.forEach(d => {
+      const p = d.data();
+      const div = document.createElement("div");
+      div.className = "post";
+      div.innerHTML = `<h3>${p.title}</h3><p>${p.text}</p>`;
+
+      if (isAuthor) {
+        const btn = document.createElement("button");
+        btn.innerText = "Удалить";
+        btn.onclick = () => deleteDoc(doc(db, "posts", d.id));
+        div.appendChild(btn);
+      }
+
+      postsDiv.appendChild(div);
+    });
+  });
 }
 
-// Удаление комментария
-async function deleteComment(articleId, commentText){
-  if(!IS_AUTHOR) return;
-  await supabase.from('articles').update({comments:Supabase.arrayRemove('comments', commentText)}).eq('id', articleId);
-  loadArticles();
-}
+renderPosts();
 </script>
+
 </body>
 </html>
