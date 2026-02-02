@@ -29,8 +29,8 @@ textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444
   <button onclick="publish()">Опубликовать</button>
 </div>
 
-<h2>Статьи</h2>
-<div id="posts"></div>
+<h2 id="postsHeader" style="display:none">Статьи</h2>
+<div id="posts" style="display:none"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
@@ -50,6 +50,9 @@ const db = getFirestore(app);
 
 let isAuthor = false;
 
+const postsDiv = document.getElementById("posts");
+const postsHeader = document.getElementById("postsHeader");
+
 window.loginAuthor = () => {
   const code = prompt("Введите код автора:");
   if (code === "120812") {
@@ -57,6 +60,9 @@ window.loginAuthor = () => {
     document.getElementById("authorPanel").style.display = "block";
     document.getElementById("login").style.display = "none";
     document.getElementById("title").innerText = "Режим автора";
+    postsHeader.style.display = "block";
+    postsDiv.style.display = "block";
+    loadPosts();
   } else {
     alert("Неверный код");
   }
@@ -65,6 +71,9 @@ window.loginAuthor = () => {
 window.loginUser = () => {
   document.getElementById("login").style.display = "none";
   document.getElementById("title").innerText = "Режим пользователя";
+  postsHeader.style.display = "block";
+  postsDiv.style.display = "block";
+  loadPosts();
 };
 
 window.publish = async () => {
@@ -76,33 +85,34 @@ window.publish = async () => {
   postText.value = "";
 };
 
-const postsDiv = document.getElementById("posts");
+// Функция загрузки и обновления статей
+function loadPosts() {
+  onSnapshot(collection(db, "posts"), snap => {
+    postsDiv.innerHTML = "";
+    snap.forEach(d => {
+      const p = d.data();
+      const div = document.createElement("div");
+      div.className = "post";
+      
+      let commentsHTML = (p.comments||[]).map(c=>{
+        if(isAuthor){
+          return `<div class="comment">${c} <button class="delete-btn" onclick="deleteComment('${d.id}','${c}')">Удалить</button></div>`;
+        } else {
+          return `<div class="comment">${c}</div>`;
+        }
+      }).join("");
 
-onSnapshot(collection(db, "posts"), snap => {
-  postsDiv.innerHTML = "";
-  snap.forEach(d => {
-    const p = d.data();
-    const div = document.createElement("div");
-    div.className = "post";
-    
-    let commentsHTML = (p.comments||[]).map((c,index)=>{
-      if(isAuthor){
-        return `<div class="comment">${c} <button class="delete-btn" onclick="deleteComment('${d.id}','${c}')">Удалить</button></div>`;
-      } else {
-        return `<div class="comment">${c}</div>`;
-      }
-    }).join("");
-
-    div.innerHTML = `<h3>${p.title}</h3><p>${p.text}</p>
-      <button onclick="like('${d.id}',${p.likes})">❤️ ${p.likes}</button>
-      ${commentsHTML}
-      <textarea id="c${d.id}" placeholder="Комментарий"></textarea>
-      <button onclick="comment('${d.id}')">Отправить</button>
-      ${isAuthor?'<button onclick="deletePost(\''+d.id+'\')">Удалить статью</button>':''}`;
-    
-    postsDiv.appendChild(div);
+      div.innerHTML = `<h3>${p.title}</h3><p>${p.text}</p>
+        <button onclick="like('${d.id}',${p.likes})">❤️ ${p.likes}</button>
+        ${commentsHTML}
+        <textarea id="c${d.id}" placeholder="Комментарий"></textarea>
+        <button onclick="comment('${d.id}')">Отправить</button>
+        ${isAuthor?'<button onclick="deletePost(\''+d.id+'\')">Удалить статью</button>':''}`;
+      
+      postsDiv.appendChild(div);
+    });
   });
-});
+}
 
 window.like = async (id,l) => {
   const ref = doc(db,"posts",id);
