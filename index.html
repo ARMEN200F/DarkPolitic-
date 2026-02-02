@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
     body { background:#000; color:#f00; font-family:Arial; text-align:center; margin:0; padding:20px; }
-    button { background:#800000; color:#fff; border:none; padding:10px 15px; cursor:pointer; margin:8px 0; width:100%; font-size:16px; border-radius: 5px; }
+    button { background:#800000; color:#fff; border:none; padding:12px; cursor:pointer; margin:8px 0; width:100%; font-size:16px; border-radius: 5px; }
     button:hover { background: #a00; }
-    textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444; padding:8px; margin:5px 0; font-size:16px; box-sizing: border-box; }
+    textarea, input { width:100%; background:#222; color:#fff; border:1px solid #444; padding:10px; margin:5px 0; font-size:16px; box-sizing: border-box; }
     .post { border-left:4px solid #f00; padding:15px; margin:20px 0; background:#151515; text-align:left; }
     .comment { background:#222; padding:8px; margin:8px 0; border-bottom: 1px solid #333; font-size: 14px; color: #ccc; }
     .delete-btn { background:#f00; color:#fff; border:none; padding:2px 8px; cursor:pointer; float: right; font-size: 12px; }
@@ -37,15 +37,14 @@
 import { initializeApp } from "https://www.gstatic.com";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, arrayUnion, arrayRemove, query, orderBy } from "https://www.gstatic.com";
 
-// ВОТ ТВОЙ НОВЫЙ КОНФИГ, КОТОРЫЙ Я ВСТАВИЛ:
 const firebaseConfig = {
-    apiKey: "AIzaSyBgikLEMJcbQmqDwXrzxaOFCDV9X2lgkKc",
-    authDomain: "rrrsnsh.firebaseapp.com",
-    projectId: "rrrsnsh",
-    storageBucket: "rrrsnsh.firebasestorage.app",
-    messagingSenderId: "124811044265",
-    appId: "1:124811044265:web:4c5d8c551f335df84650b8",
-    measurementId: "G-9KMCCJDX8P"
+    apiKey: "AIzaSyB3Ihim9lcyL5AKfXi055uMw_1--u7vYMQ",
+    authDomain: "liou-fea92.firebaseapp.com",
+    projectId: "liou-fea92",
+    storageBucket: "liou-fea92.firebasestorage.app",
+    messagingSenderId: "1009858434231",
+    appId: "1:1009858434231:web:ddb05c5602188bf0012932",
+    measurementId: "G-5G05YL7SVG"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -54,17 +53,15 @@ const db = getFirestore(app);
 let isAuthor = false;
 
 window.loginAuthor = () => {
-  const code = prompt("Введите код автора:");
-  if (code === "120812") {
+  if (prompt("Введите код автора:") === "120812") {
     isAuthor = true;
     showApp("Режим автора");
     document.getElementById("authorPanel").style.display = "block";
-  } else {
-    alert("Неверный код");
-  }
+  } else { alert("Неверный код"); }
 };
 
 window.loginUser = () => {
+  isAuthor = false;
   showApp("Режим пользователя");
 };
 
@@ -82,15 +79,11 @@ window.publish = async () => {
   if (!title || !text) return alert("Заполни всё");
   try {
     await addDoc(collection(db, "posts"), { 
-        title, 
-        text, 
-        comments: [], 
-        likes: 0, 
-        time: Date.now() 
+        title, text, comments: [], likes: 0, time: Date.now() 
     });
     document.getElementById("postTitle").value = "";
     document.getElementById("postText").value = "";
-  } catch(e) { alert("Ошибка сохранения: " + e.message); }
+  } catch(e) { alert("Ошибка: " + e.message); }
 };
 
 function loadPosts() {
@@ -102,21 +95,16 @@ function loadPosts() {
       const p = d.data();
       const div = document.createElement("div");
       div.className = "post";
-      
       let commentsHTML = (p.comments || []).map(c => `
-        <div class="comment">
-            ${c} 
-            ${isAuthor ? `<button class="delete-btn" onclick="deleteComment('${d.id}','${c}')">✖</button>` : ''}
-        </div>
+        <div class="comment">${c} ${isAuthor ? `<button class="delete-btn" onclick="deleteComment('${d.id}','${c}')">✖</button>` : ''}</div>
       `).join("");
 
       div.innerHTML = `
-        <h3>${p.title}</h3>
-        <p>${p.text}</p>
+        <h3>${p.title}</h3><p>${p.text}</p>
         <button onclick="like('${d.id}', ${p.likes})">❤️ ${p.likes}</button>
         <div class="comments-section">${commentsHTML}</div>
         <textarea id="c${d.id}" placeholder="Ваш комментарий..."></textarea>
-        <button onclick="comment('${d.id}')">Комментировать</button>
+        <button onclick="comment('${d.id}')">Отправить</button>
         ${isAuthor ? `<button style="background:#444; margin-top:10px;" onclick="deletePost('${d.id}')">Удалить статью</button>` : ''}
       `;
       postsDiv.appendChild(div);
@@ -125,25 +113,22 @@ function loadPosts() {
 }
 
 window.like = async (id, currentLikes) => {
-  await updateDoc(doc(db, "posts", id), { likes: currentLikes + 1 });
+  await updateDoc(doc(db, "posts", id), { likes: (currentLikes || 0) + 1 });
 };
 
 window.comment = async (id) => {
   const input = document.getElementById("c" + id);
-  const text = input.value.trim();
-  if (!text) return;
-  await updateDoc(doc(db, "posts", id), { comments: arrayUnion(text) });
+  if (!input.value.trim()) return;
+  await updateDoc(doc(db, "posts", id), { comments: arrayUnion(input.value.trim()) });
   input.value = "";
 };
 
 window.deleteComment = async (postId, text) => {
-  await updateDoc(doc(db, "posts", postId), { comments: arrayRemove(text) });
+  if (isAuthor) await updateDoc(doc(db, "posts", postId), { comments: arrayRemove(text) });
 };
 
 window.deletePost = async (postId) => {
-  if (confirm("Удалить статью?")) {
-    await deleteDoc(doc(db, "posts", postId));
-  }
+  if (isAuthor && confirm("Удалить статью?")) await deleteDoc(doc(db, "posts", postId));
 };
 </script>
 </body>
